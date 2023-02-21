@@ -87,12 +87,11 @@ end
 
 local function getSuperArea()
     local Super = Crystals.Super
-    local UnlockedArea = lp.UnlockedArea
     local a = nil
     for i, v in pairs(Super:GetChildren()) do
-        -- print(i, v)
-        if v.Time and v.Time.Value > 0 then
-            if UnlockedArea.Value <= v.Area.Value then
+        print(i, v)
+        if v.Active.Value then
+            if v.Area.Value <= lp.UnlockedArea.Value then
                 a = v.Area.Value
             end
         end
@@ -130,11 +129,7 @@ local function checkExotics(questArea)
             pcall(function()
                 moveto(v.CFrame + Vector3.new(0,6,0), 50)
             end)
-            local mag = noid.MoveDirection.Magnitude
-            print(mag)
-            if mag > 0 then
-                repeat task.wait() until mag == 0
-            end
+            task.wait(5)
             keyPress("R")
             task.wait(10)
         end
@@ -154,9 +149,11 @@ local function autoQuest()
             end
 
             local inArea, questArea = getAreas() -- Get updated values for current area and quest area
-            if getgenv().SUPER and getSuperArea() then
+
+            if getSuperArea() and getgenv().SUPER then
                 questArea = getSuperArea()
             end
+
             local nextArea = nextArea(inArea, questArea) -- Figure out which direction to travel positon +1, -1
             -- print("Next Area =", nextArea)
             if nextArea == 0 and questArea == 0 then -- Set next area to first area to avoid timeout if questArea is 0
