@@ -335,9 +335,10 @@ z:Label("Right Ctrl = Hide/Show Gui",{
 })
 
 local function redeemCodes()
-    local codes = loadstring(game:HttpGet())
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/maddjester/Collect-All-Pets/main/codes.txt"))()
     for _, code in pairs(codes) do
         local A_1 = code
+        print(A_1)
         local Event = game:GetService("ReplicatedStorage").Remotes.RedeemCode
         Event:FireServer(A_1)
     end

@@ -79,3 +79,4 @@ local codes = {
     "FirstCodeEver",
     "Groupie"
 }
+return codes
