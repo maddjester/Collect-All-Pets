@@ -88,15 +88,16 @@ end
 local function getSuperArea()
     local Super = Crystals.Super
     local UnlockedArea = lp.UnlockedArea
-    for _, v in pairs(Super:GetChildren()) do
+    local a = nil
+    for i, v in pairs(Super:GetChildren()) do
         -- print(i, v)
-        if v.Time.Value > 0 then
+        if v.Time and v.Time.Value > 0 then
             if UnlockedArea.Value <= v.Area.Value then
-                return v.Area.Value
+                a = v.Area.Value
             end
         end
     end
-    return nil
+    return a
 end
 
 local function getProgress()
@@ -130,6 +131,7 @@ local function checkExotics(questArea)
                 moveto(v.CFrame + Vector3.new(0,6,0), 50)
             end)
             local mag = noid.MoveDirection.Magnitude
+            print(mag)
             if mag > 0 then
                 repeat task.wait() until mag == 0
             end
@@ -147,20 +149,16 @@ local function autoQuest()
             if not getgenv().QUEST then break end;
             if not part then repeat task.wait(1) until part end;
             if noid.Sit then noid.Sit = not noid.Sit end;
-
             if Camera.CameraType ~= "Custom" or Hatcher.Visible then
                 keyPress("E", 0.2)
             end
-            local inArea, questArea = getAreas() -- Get updated values for current area and quest area
-            
-            if getgenv().SUPER and getSuperArea() ~= nil then
 
+            local inArea, questArea = getAreas() -- Get updated values for current area and quest area
+            if getgenv().SUPER and getSuperArea() then
                 questArea = getSuperArea()
             end
-
             local nextArea = nextArea(inArea, questArea) -- Figure out which direction to travel positon +1, -1
             -- print("Next Area =", nextArea)
-
             if nextArea == 0 and questArea == 0 then -- Set next area to first area to avoid timeout if questArea is 0
                 nextArea = 1
             end
