@@ -1,84 +1,58 @@
 print("loading --")
+local ws = game:GetService("Workspace")
 local lp = game:GetService("Players").LocalPlayer
+
 local chr = lp.Character
 local noid = chr:FindFirstChild("Humanoid")
 local part = chr:FindFirstChild("HumanoidRootPart")
-local Areas = game:GetService("Workspace").Areas
-local AreaBarriers = game:GetService("Workspace").AreaBarriers
 
-local function tweenTo(pos)
-    if not part then repeat task.wait(1) until part end;
-    part.CanCollide = false
-    part.Anchored = false
-    if noid.Sit then noid.Sit = not noid.Sit end;
+local Areas = ws.Areas:GetChildren()
+local areas = {"Meadow","Forest","Desert","Arctic","Beach","Mountains","Jungle","Main","Tba8","Tba9"}
+local AreaBarriers = ws.AreaBarriers
+local Camera = ws.Camera
+local Hatcher = lp.PlayerGui.ScreenGui.Hatcher
+local Crystals = ws.Crystals
 
-    local tween_s = game:GetService("TweenService")
-    local tweeninfo = TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, 0, false, 0)
-    --local newPos = pos + Vector3.new(0, 6, 0)
-    local charCF = lp.Character:GetPrimaryPartCFrame()
-    local dir = ((pos - charCF.Position) * Vector3.new(1, 0, 1)) + Vector3.new(0, charCF.Position.Y, 0)
-    local newCF = CFrame.lookAt(charCF.Position + dir, Vector3.new(0, 1, 0))
-    --local cf = CFrame.new(newPos)
-    local animation = tween_s:Create(part, tweeninfo, {CFrame = newCF})
-    keypress(0x57)
-    animation:Play()
-    task.wait(5)
-    keyrelease(0x57)
-    animation:Cancel()
-    animation:Destroy()
-end
-
-local function getWaypoints()
-    local areas = Areas:GetChildren()
-    local names, positions = {}, {}
-    for i, c in pairs(areas) do
-        if c then
-            if c.Name and c.Position then
-                --print(c.Name, c.Position)
-                if c.Name ~= "Main" then
-                    table.insert(names, c.Name)
-                    table.insert(positions, c.Position)
-                    for i2, b in pairs(AreaBarriers:GetDescendants()) do
-                        if b == "Model" then
-                            if c.Name == areas[b.Area.Value] then
-                                table.insert(positions, b.Wall.Position)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return names, positions
-end
-
-local function keyPress(str)
+local function keyPress(str, secnds)
+    local secnds = secnds or 0.1
     if str then
         local event = game:GetService("VirtualInputManager")
         event:SendKeyEvent(true, str, false, game)
-        task.wait()
+        task.wait(secnds)
         event:SendKeyEvent(false, str, false, game)
     end
 end
 
+local function tweenTo(pos)
+    if pos then
+        local dist = (pos - part.Position)
+        local timeDelay = (dist / noid.WalkSpeed)
 
-local function buyEggs(index, count)
-    for i = 1, count do
-        local Event = game:GetService("ReplicatedStorage").Remotes.BuyEgg
-        Event:FireServer(index)
-        task.wait(2)
-        keyPress("E")
-        print(index)
+        if noid.Sit then noid.Sit = not noid.Sit end;
+        local tween_s = game:GetService("TweenService")
+        local tweeninfo = TweenInfo.new(timeDelay, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 0)
+        local newPos = pos + Vector3.new(0, 6, -1)
+        local cf = CFrame.new(newPos)
+        local animation = tween_s:Create(part, tweeninfo, {CFrame = cf})
+        keypress(0x57)
+        animation:Play()
+        task.wait(timeDelay)
+        keyrelease(0x57)
+        animation:Cancel()
+        animation:Destroy()
     end
+end
+
+local function buyEgg(index)
+    local Event = game:GetService("ReplicatedStorage").Remotes.BuyEgg
+    Event:FireServer(index)
 end
 
 local function claimReward()
     local Event = game:GetService("ReplicatedStorage").Remotes.ClaimQuestReward
     Event:FireServer()
-    task.wait(2)
-    keyPress("E")
-    task.wait(10)
 end
+
 local function nextArea(area, area2)
     if area == area2 then return 0 end;
     local i = 1
@@ -86,7 +60,6 @@ local function nextArea(area, area2)
     local result = area + i
     return result
 end
-
 
 local function getAreas()
     local a, q = 0, 0
@@ -97,140 +70,213 @@ local function getAreas()
     end
 end
 
+local function getSuperArea()
+    local Super = Crystals.Super
+    local c = nil
+    for _, v in pairs(Super:GetChildren()) do
+        -- print(i, v)
+        if v.Time.Value > 0 then
+            c = v.Area.Value
+            return c
+        end
+    end
+end
 
 local function getProgress()
     local g, p = 0, 0
+    if getSuperArea() then
+        local superFrame = lp.PlayerGui.ScreenGui.Main.Top.SuperCrystalFrame
+
+    end
     if lp.QuestGoal and lp.QuestProgress then
         g, p = lp.QuestGoal.Value, lp.QuestProgress.Value
         return g, p
     end
 end
 
+local function getPetNames()
+    local pets = require(game:GetService("ReplicatedStorage").DB.Pets)
+    local p = {}
+    for i, v in pets do
+        table.insert(p, i)
+    end
+    return p
+end
 
-local function returnPets(n)
-    local petFrame = game:GetService("Players").LocalPlayer.PlayerGui.ScreenGui.Main.Pets.PetsContainer.ScrollingFrame
-    local r = {"Common","Uncommon","Rare","Epic","Legendary","Prodigious","Ascended","Mythical"}
-    
-    print("Searching for", r[n], "pets...")
-    local results = {}
-    local index = 1
-    for i, v in pairs(petFrame:GetDescendants()) do
-        if v.Name == "RarityLabel" then
-            if v.Text == r[n] then
-                local name = v.Parent.NameLabel.Text:gsub(" ","_")
-                table.insert(results, index, name)
-            end
+local function closeHatcher()
+    if Camera.CameraType ~= "Custom" and Hatcher.Visible then
+        keyPress("E", 0.2)
+    end
+end
+
+local function checkExotics(questArea)
+    local areaName = Areas[questArea].Name
+    local areaCrystals = Crystals[areaName]
+    for i, v in pairs(areaCrystals:GetDescendants()) do
+        -- print(i, v)
+        if v.Name == "Base" and v.Position then
+            print("Found Exotic Crystal!")
+            tweenTo(v.Position)
+            keyPress("R")
+            task.wait(5)
         end
     end
-    return results
 end
-
-
-local function fireFuse(args)
-    local args = args or {}
-    local Event = game:GetService("ReplicatedStorage").Remotes.FusePets
-    Event:FireServer(args)
-    task.wait(5)
-end
-
-
-local function fuseAll(n)
-    local names = returnPets(n)
-    local payload = {}
-    local last
-    local logtable = {}
-
-    for _, log in pairs(names) do
-        local index = log
-        logtable[index] = (logtable[index] or 0) + 1
-    end
-    print("Found", #names, "pets to Fuse")
-
-    for k, v in pairs(logtable) do
-        print(k, v)
-        local pet = {["Pet"] = k, ["Index"] = v}
-        table.insert(payload, pet)
-    end
-
-    local final = {}
-    for i = 1, 5 do
-        table.insert(final, i, payload[i])
-    end
-end
-
 
 local function autoQuest()
-    if getgenv().SCRIPT then
+    if getgenv().QUEST then
         local questCompleted = 0
-        if lp.Badge_CrystalsDestroyed.Value < 99999 then
-            lp.Badge_CrystalsDestroyed.Value = 99999 -- Magnet hack
-        end
 
         while task.wait(5) do
-            if not getgenv().SCRIPT then break end;
+            if not getgenv().QUEST then break end;
+            if not part then repeat task.wait(1) until part end
+            closeHatcher()
+
             local inArea, questArea = getAreas() -- Get updated values for current area and quest area
-            -- print(inArea, questArea)
-            local areas, v3s = getWaypoints() -- Get list of area names and vector3 positions
-            -- print(#areas, #v3s)
-            local nextArea = nextArea(inArea, questArea) -- Figure out which direction to travel
-            -- print(nextArea)
+            if getSuperArea() ~= nil then
+                questArea = getSuperArea()
+            end
+
+            local nextArea = nextArea(inArea, questArea) -- Figure out which direction to travel positon +1, -1
+            -- print("Next Area =", nextArea)
             if nextArea == 0 and questArea == 0 then -- Set next area to first area to avoid timeout if questArea is 0
                 nextArea = 1
             end
-
             if inArea == questArea then -- Farm until questArea changes
-                local totProg, myProg = getProgress()
-                if myProg == totProg then
+                checkExotics(questArea)
+                local totProg, myProg = getProgress() -- Get Updated values for progress
+                if myProg == totProg then -- Claim reward if quest is complete
                     claimReward()
-                    keyPress("E")
                     questCompleted = questCompleted + 1
                     print("Quests Completed --", questCompleted)
+                    if getgenv().ALWAYSEQUIPBEST then
+                        keyPress("R")
+                    end
                 end
-                print("Quest completed/total --", myProg.."/"..totProg)
-            elseif inArea ~= nextArea then -- Move to next area if not in the questArea
-                print("In -->", areas[inArea], "Moving to -->", areas[nextArea])
-                tweenTo(v3s[nextArea])
+                print("Current Quest Progress/Goal --", myProg.."/"..totProg)
+            elseif inArea ~= nextArea and nextArea > 0 then -- Move to next area if not in the questArea
+                local pos = Areas[nextArea].Position
+                print("Moving to:", areas[nextArea])
+                tweenTo(pos)
             end
-
-            print("In -->", areas[inArea], "Quest -->", areas[questArea])
+            print("Current Area:", areas[inArea], "Target Area:", areas[questArea])
         end
     end
 end
-getgenv().SCRIPT = false
-local library = loadstring(game:HttpGet(('https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wall%20v3')))()
-local w = library:CreateWindow("collect all pets") -- Creates the window
-local b = w:CreateFolder("Farming") -- Creates the folder(U will put here your buttons,etc)
 
-b:Toggle("Auto Quest",function(bool)
-    getgenv().SCRIPT = bool
+-- GUI Configuration
+
+local library = loadstring(game:HttpGet(('https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wall%20v3')))()
+local w = library:CreateWindow("Collect All Pets!")
+local b = w:CreateFolder("Questing")
+local c = w:CreateFolder("Pets & Eggs")
+local d = w:CreateFolder("Badges")
+local z = w:CreateFolder("Gui")
+
+getgenv().QUEST = false
+
+b:Toggle("Auto Quest", function(bool)
+    getgenv().QUEST = bool
     print("Auto Quest:", bool)
     if bool then
-        autoQuest()
+        task.spawn(function()
+            autoQuest()
+        end)
     end
 end)
-b:Dropdown("Teleport to Area",getWaypoints(),true,function(area)
-    local envs = {
-        [1] = "Meadow",
-        [2] = "Forest"
+
+local function tpTo(place)
+    local result = nil
+    for i, area in pairs(areas) do
+        -- print(area)
+        if area == place then
+            result = Areas[i]
+            if result then
+                print("Teleport to:", result.Name, result.Position)
+                lp.Character:MoveTo(result.Position)
+            end
+        end
+    end
+end
+
+b:Dropdown("Teleport to Area", areas, false, function(place)
+    tpTo(place)
+end)
+
+getgenv().ALWAYSEQUIPBEST = false
+c:Toggle("Always Equip Best Pets", function(bool)
+    getgenv().ALWAYSEQUIPBEST = bool
+end)
+c:Button("Equip Best Pets",function()
+    keyPress("R")
+end)
+
+c:Dropdown("Select type",{"Common","Unommon","Rare","Epic","Legendary"}, true, function(eggType)
+    getgenv().EGGTYPE = eggType
+end)
+getgenv().EGGTYPE = nil
+c:Button("Buy Egg",function()
+    local eggNum = {
+        ["Common"] = 1,
+        ["Unommon"] = 2,
+        ["Rare"] = 3,
+        ["Epic"] = 4,
+        ["Legendary"] = 5
     }
-    tweenTo(Areas[area].Position)
-end)
-local eggNum = {
-    ["Common"] = 1,
-    ["Unommon"] = 2,
-    ["Rare"] = 3,
-    ["Epic"] = 4,
-    ["Legendary"] = 5,
-}
-b:Dropdown("Buy 5 Eggs",{"Common","Unommon","Rare","Epic","Legendary"},true,function(eggType)
-    
-    buyEggs(eggNum[eggType], 5)
-    print("Bought 5 of", eggType)
+    local eggPrice = {
+        ["Common"] = 7500,
+        ["Uncommon"] = 35000,
+        ["Rare"] = 160000,
+        ["Epic"] = 750000,
+        ["Legendary"] = 3500000
+    }
+    local type = getgenv().EGGTYPE
+    local playerGold = lp.Gold.Value
+    if type then
+        if playerGold >= eggPrice[type] then
+            buyEgg(eggNum[type])
+            task.wait(3)
+            closeHatcher()
+            print("Bought a", type, "egg!")
+        else
+            print("Not enough gold to buy", type, "egg.")
+        end
+    else
+        print("No egg type selected.")
+    end
 end)
 
-b:Button("Reset Character",function()
-    game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid").Health = 0
+d:Toggle("Get Badges", function(bool)
+    local cDestroyed = lp.Badge_CrystalsDestroyed
+    local goldGamePass = lp.HasGoldGamePass
+    local hasFuseAllGamePass = lp.HasFuseAllGamePass
+    local autoCalcify = lp.AutoCalcify
+    local HasPetEquipGamePass = lp.HasPetEquipGamePass
+    local AutoFuse = lp.AutoFuse
+    local AutoEquip = lp.AutoEquip
+    local InRebirthArea = lp.InRebirthArea
+
+    goldGamePass.Value = bool
+    hasFuseAllGamePass.Value = bool
+    autoCalcify.Value = bool
+    HasPetEquipGamePass.Value = bool
+    AutoFuse.Value = bool
+    AutoEquip.Value = bool
+    InRebirthArea.Value = bool
+    local oldVal = cDestroyed.Value
+    if bool then
+        if cDestroyed.Value < 99999 then
+            cDestroyed.Value = 99999
+        end
+    else
+        cDestroyed.Value = oldVal
+    end
 end)
 
-b:DestroyGui()
+z:Label("Right Ctrl = Hide/Show Gui",{
+    TextSize = 14; -- Self Explaining
+    TextColor = Color3.fromRGB(255,255,255); -- Self Explaining
+    BgColor = Color3.fromRGB(69,69,69); -- Self Explaining 
+})
+z:DestroyGui()
 print("loaded --")
