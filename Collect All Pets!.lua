@@ -1,27 +1,129 @@
 if not game:IsLoaded() then print("loading --"); game.Loaded:Wait() end;
 local ws = game:GetService("Workspace")
 local lp = game:GetService("Players").LocalPlayer
-
+local VirtualUser = game:GetService("VirtualUser")
 local chr = lp.Character
 local noid = chr:FindFirstChild("Humanoid")
 local part = chr:FindFirstChild("HumanoidRootPart")
-
+local screenGui = lp.PlayerGui.ScreenGui
+local showCase = screenGui.Hatcher.Showcase
+local ContinueButton = showCase.ContinueButton
+local equipBest = screenGui.Main.Pets.EquipFrame.EquipBestButton
 local Areas = ws.Areas:GetChildren()
-local areas = {"Meadow","Forest","Desert","Arctic","Beach","Mountains","Jungle","Main","Tba8","Tba9"}
-local AreaBarriers = ws.AreaBarriers
-local Camera = ws.Camera
-local Hatcher = lp.PlayerGui.ScreenGui.Hatcher
+local areas = {"Meadow","Forest","Desert","Arctic","Beach","Mountains","Jungle","Main","Grotto","Grove"}
 local Crystals = ws.Crystals
-
 local TweenService  = game:GetService("TweenService")
 local noclipE = true
 local antifall = true
+
+local function getRarity()
+    local CheckList = lp.PlayerGui.ScreenGui.Main.Left.Checklist
+    local t
+    for _, v in pairs(CheckList:GetDescendants()) do
+        if v.Name == "Checkmark" then
+            if not v.Check.Visible then
+                -- print(v.Parent.RarityLabel.Text)
+                t = v.Parent.RarityLabel.Text
+                if t == "Ascended" or t == "Mythical"  then
+                    t = "Common"
+                end
+            end
+        end
+    end
+    return t
+end
+
+local function buySlot(area)
+    local Event = game:GetService("ReplicatedStorage").Remotes.BuyPetEquipSlot
+    Event:FireServer(area)
+end
+
+local function autoSlots()
+    while true do
+        if not getgenv().SLOTS then break end;
+        for i = 1, 5 do
+            buySlot(i)
+        end
+        task.wait(10)
+    end
+end
+
+local function buyEgg(index)
+    local Event = game:GetService("ReplicatedStorage").Remotes.BuyEgg
+    if ws.Camera.CameraType ~= "Custom" and showCase.Visible then
+        pcall(function()
+            firesignal(ContinueButton.Activated)
+            task.wait(0.1)
+        end)
+    end
+    Event:FireServer(index)
+end
+
+local function fireRebirth()
+    local Event = game:GetService("ReplicatedStorage").UI.Remotes.OnRebirth
+    Event:FireServer()
+end
+
+local function autoDiscover()
+    local rndNum = math.random(1, 6)
+    local rarities = {
+        ["Common"] = 1,
+        ["Uncommon"] = 2,
+        ["Rare"] = 3,
+        ["Epic"] = 4,
+        ["Legendary"] = 5,
+        ["Prodigious"] = 6,
+        ["Ascended"] = rndNum,
+        ["Mythical"] = rndNum
+    }
+    while true do
+        if not getgenv().DISCOVER then break end;
+        local r = getRarity()
+        if r and rarities[r] then
+            -- print(rarities[r])
+            buyEgg(rarities[r])
+            task.wait(2)
+        else
+            if getgenv().REBIRTH then
+                fireRebirth()
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local function antiIdle()
+    task.wait(3)
+    lp.Idled:connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
+    end)
+end
+
+local function shuffleObjs(t)
+    local shuffled = {}
+    for _, v in ipairs(t) do
+        local pos = math.random(1, #shuffled+1)
+        table.insert(shuffled, pos, v)
+    end
+    return shuffled
+end
 
 local function noclip()
     for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
         if v:IsA("BasePart") and v.CanCollide == true then
             v.CanCollide = false
             game.Players.LocalPlayer.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+        end
+    end
+end
+
+local function removeBarriers()
+    local AreaBarriers = ws.AreaBarriers
+    for i, v in pairs(AreaBarriers:GetDescendants()) do
+        if v.Name == "Part" or v.Name == "Wall" then
+            v.Transparency = 1
+            v.CanCollide = false
         end
     end
 end
@@ -43,19 +145,86 @@ local function moveto(obj, speed)
     end)
 end
 
-local function keyPress(str, secnds)
-    local secnds = secnds or 0.1
-    if str then
-        local event = game:GetService("VirtualInputManager")
-        event:SendKeyEvent(true, str, false, game)
-        task.wait(secnds)
-        event:SendKeyEvent(false, str, false, game)
+local function clickSlots()
+    local modifier = {
+        "PetSlot_1",
+        "PetSlot_2",
+        "PetSlot_3",
+        "PetSlot_4",
+        "PetSlot_5",
+    }
+    for i = 1, #modifier do
+        local slot = lp.PlayerGui.ScreenGui.Main.Pets.FuseFrame[modifier[i]]
+        pcall(function()
+            firesignal(slot.Button.Activated)
+            task.wait(0.1)
+        end)
     end
 end
 
-local function buyEgg(index)
-    local Event = game:GetService("ReplicatedStorage").Remotes.BuyEgg
-    Event:FireServer(index)
+local Pets = lp.PlayerGui.ScreenGui.Main.Pets
+local container = Pets.PetsContainer.ScrollingFrame
+local fuseBtn = Pets.FuseFrame.FuseButton
+local FuseFrame = Pets.FuseFrame
+local fuseTab = Pets.FuseButton
+
+local filterList = Pets.FilterFrame.Inset.List
+local petsBtn = lp.PlayerGui.ScreenGui.Main.Bottom.PetsButton
+local fuseLabel = Pets.FuseFrame.FuseButton.FuseLabel
+
+local function fusePets()
+    local filters = {}
+    for _, f in pairs(filterList:GetChildren()) do
+        if f.Name ~= "Equipped" and f.ClassName == "ImageButton" then
+            table.insert(filters, f)
+        end
+    end
+
+    while true do
+        if not getgenv().FUSE then break end;
+        for _, f in pairs(filters) do
+            pcall(function()
+                firesignal(f.Activated)
+                task.wait(0.1)
+            end)
+            if not FuseFrame.Visible then
+                pcall(function()
+                    firesignal(fuseTab.Activated)
+                    task.wait(0.1)
+                end)
+            end
+            if Pets and not Pets.Visible then
+                pcall(function()
+                    firesignal(petsBtn.Activated)
+                    task.wait(0.1)
+                end)
+            end
+            clickSlots()
+            local pets = shuffleObjs(container:GetChildren())
+            for _, v in ipairs(pets) do
+                if not getgenv().FUSE then break end;
+                if fuseLabel.Text == "Fuse" then break end;
+                if v.ClassName == "TextButton" then
+                    pcall(function()
+                        firesignal(v.Activated)
+                        task.wait(0.1)
+                    end)
+                end
+            end
+            if fuseLabel.Text == "Fuse" then
+                firesignal(fuseBtn.Activated)
+                repeat task.wait(1) until ContinueButton.Parent.Visible
+                task.wait(1)
+                pcall(function()
+                    firesignal(ContinueButton.Activated)
+                    task.wait(0.1)
+                end)
+            else
+                clickSlots()
+            end
+        end
+        task.wait(1)
+    end
 end
 
 local function claimReward()
@@ -89,7 +258,7 @@ local function getSuperArea()
     local Super = Crystals.Super
     local a = nil
     for i, v in pairs(Super:GetChildren()) do
-        print(i, v)
+        -- print(i, v)
         if v.Active.Value then
             if v.Area.Value <= lp.UnlockedArea.Value then
                 a = v.Area.Value
@@ -100,23 +269,11 @@ local function getSuperArea()
 end
 
 local function getProgress()
-    local g, p = 0, 0
-    if getSuperArea() then
-        local superFrame = lp.PlayerGui.ScreenGui.Main.Top.SuperCrystalFrame
-    end
+    local g, p = 0, -1
     if lp.QuestGoal and lp.QuestProgress then
         g, p = lp.QuestGoal.Value, lp.QuestProgress.Value
-        return g, p
     end
-end
-
-local function getPetNames()
-    local pets = require(game:GetService("ReplicatedStorage").DB.Pets)
-    local p = {}
-    for i, v in pets do
-        table.insert(p, i)
-    end
-    return p
+    return g, p
 end
 
 local function checkExotics(questArea)
@@ -128,10 +285,21 @@ local function checkExotics(questArea)
             print("Found Exotic Crystal!")
             pcall(function()
                 moveto(v.CFrame + Vector3.new(0,6,0), 50)
+                task.wait(4)
+                firesignal(equipBest.Activated)
             end)
+        end
+    end
+end
+
+local function collectHiddenEggs()
+    local Eggs = ws.HiddenEggs
+    for i, v in pairs(Eggs:GetChildren()) do
+        if v.Area.Value <= lp.UnlockedArea.Value then
+            firetouchinterest(v, part, 0)
             task.wait(5)
-            keyPress("R")
-            task.wait(10)
+            firetouchinterest(v, part, 1)
+            print("Found:", v.Name)
         end
     end
 end
@@ -139,27 +307,25 @@ end
 local function autoQuest()
     if getgenv().QUEST then
         local questCompleted = 0
+        antiIdle()
 
-        while task.wait(1) do
+        while task.wait(2) do
             if not getgenv().QUEST then break end;
             if not part then repeat task.wait(1) until part end;
             if noid.Sit then noid.Sit = not noid.Sit end;
-            if Camera.CameraType ~= "Custom" or Hatcher.Visible then
-                keyPress("E", 0.2)
+            if ws.Camera.CameraType ~= "Custom" and showCase.Visible then
+                task.wait(1)
+                pcall(function()
+                    firesignal(ContinueButton.Activated)
+                    task.wait(0.1)
+                end)
             end
-
             local inArea, questArea = getAreas() -- Get updated values for current area and quest area
-
             if getSuperArea() and getgenv().SUPER then
                 questArea = getSuperArea()
             end
-
             local nextArea = nextArea(inArea, questArea) -- Figure out which direction to travel positon +1, -1
             -- print("Next Area =", nextArea)
-            if nextArea == 0 and questArea == 0 then -- Set next area to first area to avoid timeout if questArea is 0
-                nextArea = 1
-            end
-
             if inArea == questArea then -- Farm until questArea changes
                 local totProg, myProg = getProgress() -- Get Updated values for progress
                 if myProg == totProg then -- Claim reward if quest is complete
@@ -167,13 +333,16 @@ local function autoQuest()
                     questCompleted = questCompleted + 1
                     print("Quests Completed --", questCompleted)
                     if getgenv().ALWAYSEQUIPBEST then
-                        keyPress("R")
+                        firesignal(equipBest.Activated)
                     end
+                end
+                if getgenv().DAILY then
+                    claimDailyEgg()
                 end
                 if getgenv().EXOTIC then
                     checkExotics(questArea)
                 end
-                print("Quest Progress/Goal --", myProg.."/"..totProg)
+                print("Progress/Goal --", myProg, "/", totProg)
             elseif inArea ~= nextArea and nextArea > 0 then -- Move to next area if not in the questArea
                 pcall(function()
                     moveto(Areas[nextArea].CFrame + Vector3.new(0,6,0), 50)
@@ -187,13 +356,13 @@ end
 -- GUI Configuration
 local library = loadstring(game:HttpGet(('https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wall%20v3')))()
 local w = library:CreateWindow("Collect All Pets!")
-local b = w:CreateFolder("Questing")
-local c = w:CreateFolder("Pets & Eggs")
-local d = w:CreateFolder("Badges")
+local b = w:CreateFolder("Area & Questing")
+local c = w:CreateFolder("Pets")
+local e = w:CreateFolder("Eggs")
+local d = w:CreateFolder("Badges & Barriers")
 local z = w:CreateFolder("Server/Gui")
 
 getgenv().QUEST = false
-
 b:Toggle("Auto-Quest Complete", function(bool)
     getgenv().QUEST = bool
     print("Auto-Quest Complete:", bool)
@@ -205,14 +374,12 @@ b:Toggle("Auto-Quest Complete", function(bool)
 end)
 
 getgenv().SUPER = false
-
 b:Toggle("Go to Super Crystals", function(bool)
     getgenv().SUPER = bool
     print("Auto-Super Crystal:", bool)
 end)
 
 getgenv().EXOTIC = false
-
 b:Toggle("Go to Exotic Crystals", function(bool)
     getgenv().EXOTIC = bool
     print("Auto-Exotic Crystal:", bool)
@@ -236,48 +403,92 @@ b:Dropdown("Teleport to Area", areas, false, function(place)
     tpTo(place)
 end)
 
-c:Toggle("Auto-Claim Daily Egg", function(bool)
-    getgenv().QUEST = bool
-    print("Auto-Claim Daily Egg:", bool)
-    if bool then
-        task.spawn(function()
-            claimDailyEgg()
-        end)
-    end
-end)
-
 getgenv().ALWAYSEQUIPBEST = false
-
 c:Toggle("Always Equip Best Pets", function(bool)
     getgenv().ALWAYSEQUIPBEST = bool
     print("Always Equip Best Pets:", bool)
 end)
 
-c:Button("Equip Best Pets",function()
-    keyPress("R")
+getgenv().FUSE = false
+c:Toggle("Auto-Fuse", function(bool)
+    getgenv().FUSE = bool
+    print("Auto-Fuse:", bool)
+    if bool then
+        task.spawn(function()
+            fusePets()
+        end)
+    end
 end)
 
-c:Dropdown("Select type",{"Common","Uncommon","Rare","Epic","Legendary"}, true, function(eggType)
+getgenv().DISCOVER = false
+c:Toggle("Auto-Discover", function(bool)
+    getgenv().DISCOVER = bool
+    print("Auto-Discover:", bool)
+    if bool then
+        task.spawn(function()
+            autoDiscover()
+        end)
+    end
+end)
+
+getgenv().REBIRTH = false
+c:Toggle("Auto-Rebirth", function(bool)
+    getgenv().REBIRTH = bool
+    print("Auto-Rebirth:", bool)
+end)
+
+getgenv().SLOTS = false
+c:Toggle("Auto-Buy Pet Slots", function(bool)
+    getgenv().SLOTS = bool
+    print("Auto-Buy Pet Slots:", bool)
+    if bool then
+        task.spawn(function()
+            autoSlots()
+        end)
+    end
+end)
+
+c:Button("Equip Best Pets",function()
+    firesignal(equipBest.Activated)
+end)
+
+getgenv().DAILY = false
+e:Toggle("Auto-Claim Daily Egg", function(bool)
+    getgenv().DAILY = bool
+    if bool then
+        task.spawn(function()
+            claimDailyEgg()
+        end)
+    end
+    print("Auto-Daily Egg:", bool)
+end)
+
+e:Button("Collect Hidden Eggs",function()
+    collectHiddenEggs()
+end)
+
+e:Dropdown("Select type",{"Common","Uncommon","Rare","Epic","Legendary","Prodigious"}, true, function(eggType)
     getgenv().EGGTYPE = eggType
     print("Selected Type:", eggType)
 end)
 
 getgenv().EGGTYPE = nil
-
-c:Button("Buy Egg", function()
+e:Button("Buy Egg", function()
     local eggNum = {
         ["Common"] = 1,
         ["Uncommon"] = 2,
         ["Rare"] = 3,
         ["Epic"] = 4,
-        ["Legendary"] = 5
+        ["Legendary"] = 5,
+        ["Prodigious"] = 6,
     }
     local eggPrice = {
         ["Common"] = 7500,
         ["Uncommon"] = 35000,
         ["Rare"] = 160000,
         ["Epic"] = 750000,
-        ["Legendary"] = 3500000
+        ["Legendary"] = 3500000,
+        ["Prodigious"] = 7500000
     }
     local type = getgenv().EGGTYPE
     local playerGold = lp.Gold.Value
@@ -321,6 +532,10 @@ d:Toggle("Get Badges", function(bool)
         cDestroyed.Value = oldVal
     end
     print("Get Badges:", bool)
+end)
+
+d:Button("Remove Barriers", function()
+    removeBarriers()
 end)
 
 z:Label("Right Ctrl = Hide/Show Gui",{
@@ -413,7 +628,6 @@ local function redeemCodes()
     }
     for _, code in pairs(codes) do
         local A_1 = code
-        print(A_1)
         local Event = game:GetService("ReplicatedStorage").Remotes.RedeemCode
         Event:FireServer(A_1)
     end
@@ -424,6 +638,7 @@ end
 z:Button("Redeem Codes", function()
     redeemCodes()
 end)
+
 z:Button("Server Hop", function()
     local module = loadstring(game:HttpGet"https://raw.githubusercontent.com/LeoKholYt/roblox/main/lk_serverhop.lua")()
     if game and module then
