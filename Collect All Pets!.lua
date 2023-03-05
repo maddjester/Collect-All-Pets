@@ -296,8 +296,15 @@ local function collectHiddenEggs()
     local Eggs = ws.HiddenEggs
     for i, v in pairs(Eggs:GetChildren()) do
         if v.Area.Value <= lp.UnlockedArea.Value then
+            if ws.Camera.CameraType ~= "Custom" and showCase.Visible then
+                task.wait(1)
+                pcall(function()
+                    firesignal(ContinueButton.Activated)
+                    task.wait(0.1)
+                end)
+            end
             firetouchinterest(v, part, 0)
-            task.wait(5)
+            task.wait(0.3)
             firetouchinterest(v, part, 1)
             print("Found:", v.Name)
         end
